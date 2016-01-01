@@ -7,8 +7,7 @@ public class Result implements Serializable, Comparable<Result> {
 	
 	public static transient final String RESULT_PATH = "/", LARGEST_FILE_LOC = "largest_file_location.txt";
 	
-	public String title, description, url;
-	public Thumbnail thumbnail;
+	public String title, description, url, thumbnail;
 	public String[] solved;
 	public int quality = 0;
 	public long id;
@@ -16,16 +15,7 @@ public class Result implements Serializable, Comparable<Result> {
 	public Result(String title, String description, String thumbnailLoc, String url, String[] solved) {
 		this.title = title;
 		this.description = description;
-		this.thumbnail = new Thumbnail(thumbnailLoc);
-		this.url = url;
-		this.solved = solved;
-		this.id = getNextId();
-	}
-	
-	public Result(String title, String description, Thumbnail thumbnail, String url, String[] solved) {
-		this.title = title;
-		this.description = description;
-		this.thumbnail = thumbnail;
+		this.thumbnail = thumbnailLoc;
 		this.url = url;
 		this.solved = solved;
 		this.id = getNextId();

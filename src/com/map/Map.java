@@ -11,6 +11,10 @@ public class Map extends HttpServlet {
 	private static final long serialVersionUID = -1750103788596339179L;
 
 	private static final String LOC_PATH = "/";
+	
+	private static final int MAX_RESULTS = 4;
+	
+	
 
 	private static String getPath(String[] words, int i) {
 		if (i > 0) {
@@ -19,20 +23,24 @@ public class Map extends HttpServlet {
 		return words[i];
 	}
 	
+	private static ResultHolder getResultHolderFrom(File f) throws IOException, ClassNotFoundException {
+		FileInputStream fileIn = new FileInputStream(f);
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        ResultHolder r = (ResultHolder) in.readObject();
+        in.close();
+        fileIn.close();
+        return r;
+	}
+	
 	private static Result[] getResultsFrom(File f) {
 		try {
-			FileInputStream fileIn = new FileInputStream(f);
-	        ObjectInputStream in = new ObjectInputStream(fileIn);
-	        ResultHolder r = (ResultHolder) in.readObject();
-	        in.close();
-	        fileIn.close();
-	        
-	        List<Result> p = get(new ArrayList<Result>(), 4, r);
+			ResultHolder r = getResultHolderFrom(f);
+	        List<Result> p = get(new ArrayList<Result>(), MAX_RESULTS, r);
 	        return (Result[])p.toArray();
 		} catch (IOException e) {
-			return null;
+			return new Result[0];
 		} catch (ClassNotFoundException e) {
-			return null;
+			return new Result[0];
 		}
 	}
 	
@@ -84,21 +92,52 @@ public class Map extends HttpServlet {
 		if (file.exists()) {
 			return getResultsFrom(file);
 		} else {
-			return null;
+			return new Result[0];
 		}
 	}
 
 	public static ResultBundle[] getResults(String query) {
 		Result[] results = getResultsFromWords(query.split(" "));
-		
-		if (results != null) {
-			List<ResultBundle> s = new ArrayList<ResultBundle>();
-			for (Result r : results) {
-				s.add(new ResultBundle(r.title, r.description, r.url, r.thumbnail));
-			}
-			return (ResultBundle[])s.toArray();
-		} else {
-			return new ResultBundle[]{};
+		ResultBundle[] bundle = new ResultBundle[results.length];
+		for (int i = 0; i < results.length; i++) {
+			bundle[i] = new ResultBundle(results[i].title, results[i].description, results[i].thumbnail, results[i].id);
 		}
+		return bundle;
+	}
+	
+	/**
+	 * 
+	 * @param title
+	 * @param description
+	 * @param thumbnail
+	 * @param url
+	 * @param queries The queries that the user specified the result to have.
+	 * @return The id of the result
+	 * @throws IOException 
+	 * @throws ClassNotFoundException 
+	 */
+	public static long addResult(String title, String description, String thumbnail, String url, String[] queries) throws ClassNotFoundException, IOException {
+		Result r = new Result(title, description, thumbnail, url, queries);
+		for (String s : queries) {
+			String[] words = s.split(" ");
+			File f = new File(LOC_PATH + getPath(words, words.length - 1) + ".ser");
+			if (f.exists()) {
+				ResultHolder rh = getResultHolderFrom(f);
+				rh.add(r);
+				FileOutputStream fo = new FileOutputStream(f);
+				ObjectOutputStream o = new ObjectOutputStream(fo);
+				o.writeObject(rh);
+				o.close();
+				fo.close();
+			} else {
+				ResultHolder rh = new ResultHolder(r, null);
+				FileOutputStream fo = new FileOutputStream(f);
+				ObjectOutputStream o = new ObjectOutputStream(fo);
+				o.writeObject(rh);
+				o.close();
+				fo.close();
+			}
+		}
+		return r.id;
 	}
 }
