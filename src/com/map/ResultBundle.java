@@ -1,14 +1,25 @@
 package com.map;
 
 public class ResultBundle {
-	private String title, description, thumbnail;
-	private long id;
+	private String title, description, url;
+	private byte[] thumbnail;
+	private int width, height;
 	
-	public ResultBundle(String title, String description, String thumbnail, long id) {
+	public ResultBundle(String title, String description, String url, byte[] thumbnail, int width, int height) {
 		this.title = title;
 		this.description = description;
 		this.thumbnail = thumbnail;
-		this.id = id;
+		this.url = url;
+		this.width = width;
+		this.height = height;
+	}
+
+	public int getWidth() {
+		return width;
+	}
+
+	public int getHeight() {
+		return height;
 	}
 
 	public String getTitle() {
@@ -19,11 +30,11 @@ public class ResultBundle {
 		return description;
 	}
 
-	public String getThumbnail() {
+	public byte[] getThumbnail() {
 		return thumbnail;
 	}
 
-	public long getId() {
-		return id;
+	public String getUrl() {
+		return url;
 	}
 }

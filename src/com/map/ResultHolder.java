@@ -1,6 +1,7 @@
 package com.map;
 
 import java.io.*;
+import java.util.List;
 
 public class ResultHolder implements Serializable {
 	private static final long serialVersionUID = -5345652947981962510L;
@@ -12,7 +13,7 @@ public class ResultHolder implements Serializable {
 	 * @param least The result with the lowest quantity.  Must be a ResultHolder, Result, or String.
 	 * @param greatest The result with the greatest quantity.  Must be a ResultHolder, Result, or String.
 	 */
-	public ResultHolder(Object least, Object greatest) {
+	public ResultHolder(Object least, Object greatest) throws IOException {
 		if (least == null || least instanceof ResultHolder) {
 			this.least = least;
 		} else if (least instanceof Result) {
@@ -30,7 +31,12 @@ public class ResultHolder implements Serializable {
 		}
 	}
 	
-	public void add(Result r) {
+	@Override
+	public String toString() {
+		return "[" + least + ", " + greatest + "]";
+	}
+
+	public void add(Result r) throws IOException {
 		//Just occurred to me that I didn't comment any of this..
 		if (least == null) {
 			if (greatest == null) {
@@ -87,6 +93,87 @@ public class ResultHolder implements Serializable {
 		}
 	}
 	
+	public List<Result> get(List<Result> l, int size, Object result) throws IOException, ClassNotFoundException {
+		if (result instanceof ResultHolder) {
+			ResultHolder r = (ResultHolder)result;
+			if (r.greatest() == null) {
+				if (r.least() == null) {
+					return l;
+				}
+				
+				l.add(getResult((Pointer)r.least(), r, true));
+				return l;
+			} else if (r.greatest() instanceof Pointer) {
+				l.add(getResult((Pointer)r.greatest(), r, true));
+				if (size > 1) {
+					Object p = r.least();
+					if (p instanceof Pointer) {
+						l.add(getResult((Pointer)p, r, false));
+						return l;
+					}
+					return get(l, size - 1, r.least());
+				}
+				return l;
+			} else {
+				if (size > 1) {
+					return get(l, size - 1, r.greatest());
+				}
+				return l;
+			}
+		} else {
+			Pointer p = (Pointer)result;
+			l.add(getResult(p, null, false));
+			return l;
+		}
+	}
+	
+	public void setLeast(Object least) {
+		this.least = least;
+	}
+
+	public void setGreatest(Object greatest) {
+		this.greatest = greatest;
+	}
+
+	/**
+	 * Gets a Result object from a pointer object.
+	 * @param p
+	 * @param rh
+	 * @param greatest False for least, true for greatest
+	 * @return Result
+	 * @throws IOException
+	 * @throws ClassNotFoundException
+	 */
+	private Result getResult(Pointer p, ResultHolder rh, boolean greatest) throws IOException, ClassNotFoundException {
+		FileInputStream fileIn = new FileInputStream(Result.RESULT_PATH + p.pointer + ".ser");
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        Result r = (Result) in.readObject();
+        in.close();
+        fileIn.close();
+        
+        if (rh != null) {
+        	if (greatest) {
+        		rh.setGreatest(null);
+        	} else {
+        		if (rh.greatest() != null) {
+        			if (rh.greatest() instanceof ResultHolder) {
+        				rh = (ResultHolder)rh.greatest();
+        			} else {
+        				rh.setLeast((Pointer)rh.greatest());
+        			}
+        		} else {
+        			rh.setLeast(null);
+        		}
+        	}
+			r.quality++;
+			r.lifetime--;
+			if (r.lifetime > 0) {
+				this.add(r);
+			}
+        }
+		return r;
+	}
+	
 	public Object least() {
 		return least;
 	}
@@ -115,7 +202,7 @@ public class ResultHolder implements Serializable {
 		public String pointer;
 		public int quality;
 
-		public Pointer(Result r) {
+		public Pointer(Result r) throws IOException {
 			pointer = Long.toHexString(r.id);
 			File f = new File(Result.RESULT_PATH + pointer + ".ser");
 			ObjectOutputStream o;
@@ -127,19 +214,17 @@ public class ResultHolder implements Serializable {
 				o.close();
 				fo.close();
 			} catch (FileNotFoundException e) {
-				try {
-					f.createNewFile();
-					fo = new FileOutputStream(f);
-					o = new ObjectOutputStream(fo);
-					o.writeObject(r);
-					o.close();
-					fo.close();
-				} catch (IOException e2) {
-					e2.printStackTrace();
-				}
-			} catch (IOException e) {
-				e.printStackTrace();
+				f.createNewFile();
+				fo = new FileOutputStream(f);
+				o = new ObjectOutputStream(fo);
+				o.writeObject(r);
+				o.close();
+				fo.close();
 			}
+		}
+		
+		public String toString() {
+			return "(" + pointer + ")";
 		}
 	}
 }
