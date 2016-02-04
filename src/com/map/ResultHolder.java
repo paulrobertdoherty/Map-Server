@@ -1,7 +1,7 @@
 package com.map;
 
 import java.io.*;
-import java.util.List;
+import java.util.*;
 
 public class ResultHolder implements Serializable {
 	private static final long serialVersionUID = -5345652947981962510L;
@@ -31,6 +31,11 @@ public class ResultHolder implements Serializable {
 		}
 	}
 	
+	public ResultHolder(Object least, Object greatest, boolean lowLevel) {
+		this.least = least;
+		this.greatest = greatest;
+	}
+	
 	@Override
 	public String toString() {
 		return "[" + least + ", " + greatest + "]";
@@ -52,7 +57,7 @@ public class ResultHolder implements Serializable {
 		} else if (greatest == null) {
 			if (((Pointer)least).quality < r.quality) {
 				greatest = new Pointer(r);
-			} else {
+			} {
 				greatest = least;
 				least = new Pointer(r);
 			}
@@ -91,6 +96,33 @@ public class ResultHolder implements Serializable {
 				}
 			}
 		}
+	}
+	
+	private static boolean hasId(long id, Result[] blacklist) {
+		for (Result r : blacklist) {
+			if (id == r.id) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public static Result[] getRandom(int size, Result[] blacklist, String currentQuery, ResultHolder rh) throws IOException, ClassNotFoundException {
+		Result[] r = new Result[size];
+		long gId = Result.getId();
+		long maxId = gId <= 0 ? 1 : gId;
+		Random random = new Random();
+		for (int i = 0; i < size; i++) {
+			while (true) {
+				long id = random.nextLong() % maxId;
+				if (!hasId(id, blacklist)) {
+					r[i] = rh.getResult(id, rh, false);
+					Map.addResult(r[i], currentQuery);
+					break;
+				}
+			}
+		}
+		return r;
 	}
 	
 	public List<Result> get(List<Result> l, int size, Object result) throws IOException, ClassNotFoundException {
@@ -134,6 +166,101 @@ public class ResultHolder implements Serializable {
 	public void setGreatest(Object greatest) {
 		this.greatest = greatest;
 	}
+	
+	private static Result getResult(long pointer) throws IOException, ClassNotFoundException {
+		FileInputStream fileIn = new FileInputStream(Result.RESULT_PATH + pointer + ".ser");
+        ObjectInputStream in = new ObjectInputStream(fileIn);
+        Result r = (Result) in.readObject();
+        in.close();
+        fileIn.close();
+        return r;
+	}
+	
+	private static ArrayList<Pointer> getList(ResultHolder rh, ArrayList<Pointer> l) {
+		ArrayList<Pointer> list = l;
+		if (rh.least() != null) {
+			if (rh.least() instanceof Pointer) {
+				list.add((Pointer)rh.least());
+			} else {
+				list = getList((ResultHolder)rh.least(), list);
+			}
+			if (rh.greatest() instanceof Pointer) {
+				list.add((Pointer)rh.greatest());
+			} else {
+				list = getList((ResultHolder)rh.greatest(), list);
+			}
+		} else if (rh.greatest() != null) {
+			if (rh.greatest() instanceof Pointer) {
+				list.add((Pointer)rh.greatest());
+			} else {
+				list = getList((ResultHolder)rh.greatest(), list);
+			}
+		}
+		return list;
+	}
+	
+	private static ArrayList<Pointer> getList(ResultHolder rh) {
+		return getList(rh, new ArrayList<Pointer>());
+	}
+	
+	private Object clean(ArrayList<Pointer> array, int start, int end) {
+		int dif = end - start;
+		int halfEnd = ((end - start) / 2) + start;
+		if (dif == array.size()) {
+			least = clean(array, start, end / 2);
+			greatest = clean(array, end / 2, end);
+		} else if (dif >= 4) {
+			return new ResultHolder(
+					clean(array, start, halfEnd),
+					clean(array, halfEnd, end), true);
+		} else if (dif == 3) {
+			return new ResultHolder(
+					clean(array, start, halfEnd),
+					array.get(end - 1), true);
+		} else if (dif == 2) {
+			return new ResultHolder(array.get(start), array.get(end - 1), true);
+		} else {
+			return array.get(start);
+		}
+		return null;
+	}
+	
+	/**
+	 * Changes the ResultHolder and cleans it.  Be warned, it's slow and should be run in a separate thread whenever possible.
+	 * @param id
+	 * @param r
+	 * @param rh
+	 * @throws IOException 
+	 */
+	public void set(long id, Result r, ResultHolder rh) throws IOException {
+		ArrayList<Pointer> list = getList(rh);
+		if (r != null) {
+			for (int i = 0; i < list.size(); i++) {
+				if (list.get(i).pointer == id) {
+					list.set(i, new Pointer(r));
+				}
+			}
+		} else {
+			for (int i = 0; i < list.size(); i++) {
+				if (list.get(i).pointer == id) {
+					list.remove(i);
+				}
+			}
+		}
+		clean(list, 0, list.size());
+	}
+	
+	private Result getResult(long pointer, ResultHolder rh, boolean greatest) throws IOException, ClassNotFoundException {
+		Result r = getResult(pointer);
+		//Do when click on link
+		/*
+        r.quality++;
+		r.lifetime--;
+		if (r.lifetime > 0)
+			set(r.id, r, rh);
+		*/
+		return r;
+	}
 
 	/**
 	 * Gets a Result object from a pointer object.
@@ -145,33 +272,7 @@ public class ResultHolder implements Serializable {
 	 * @throws ClassNotFoundException
 	 */
 	private Result getResult(Pointer p, ResultHolder rh, boolean greatest) throws IOException, ClassNotFoundException {
-		FileInputStream fileIn = new FileInputStream(Result.RESULT_PATH + p.pointer + ".ser");
-        ObjectInputStream in = new ObjectInputStream(fileIn);
-        Result r = (Result) in.readObject();
-        in.close();
-        fileIn.close();
-        
-        if (rh != null) {
-        	if (greatest) {
-        		rh.setGreatest(null);
-        	} else {
-        		if (rh.greatest() != null) {
-        			if (rh.greatest() instanceof ResultHolder) {
-        				rh = (ResultHolder)rh.greatest();
-        			} else {
-        				rh.setLeast((Pointer)rh.greatest());
-        			}
-        		} else {
-        			rh.setLeast(null);
-        		}
-        	}
-			r.quality++;
-			r.lifetime--;
-			if (r.lifetime > 0) {
-				this.add(r);
-			}
-        }
-		return r;
+		return getResult(p.pointer, rh, greatest);
 	}
 	
 	public Object least() {
@@ -199,11 +300,12 @@ public class ResultHolder implements Serializable {
 	public class Pointer implements Serializable {
 		private static final long serialVersionUID = -8801937352742752935L;
 		
-		public String pointer;
+		public long pointer;
 		public int quality;
 
 		public Pointer(Result r) throws IOException {
-			pointer = Long.toHexString(r.id);
+			pointer = r.id;
+			quality = r.quality;
 			File f = new File(Result.RESULT_PATH + pointer + ".ser");
 			ObjectOutputStream o;
 			FileOutputStream fo;
